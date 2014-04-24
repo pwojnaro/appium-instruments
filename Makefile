@@ -12,7 +12,7 @@ iwd: clone_iwd build_iwd export_iwd
 authorize:
 	sudo DevToolsSecurity --enable
 	sudo security authorizationdb write system.privilege.taskport is-developer
-	sudo chown -R `whoami`: `xcode-select --print-path`/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator*.sdk/Applications
+	sudo chown -R `whoami`: `xcode-select -print-path`/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator*.sdk/Applications
 
 clone_iwd:
 	mkdir -p tmp
@@ -21,7 +21,7 @@ clone_iwd:
 
 build_iwd:
 ifndef TRAVIS_BUILD_NUMBER
-	sudo xcode-select -switch "/Applications/Xcode-7.0.app"
+	sudo xcode-select -switch "/Applications/Xcode-7.1.app"
 endif
 	cd tmp/iwd && ./build.sh 
 	sudo xcode-select -switch $(xcode_path)
@@ -31,16 +31,31 @@ export_iwd:
 	mkdir -p thirdparty/iwd
 	cp -R tmp/iwd/build/* thirdparty/iwd
 
-test: 
-	./node_modules/.bin/mocha test
+test: test_unit test_functional 
+
+test_unit:
+	./node_modules/.bin/mocha --recursive test/unit
+
+test_functional:
+	./node_modules/.bin/mocha --recursive test/functional
 
 print_env:
 	@echo OS X version: `sw_vers -productVersion`
 	@echo Xcode version: `xcodebuild build -version`
-	@echo Xcode path: `xcode-select --print-path`
+	@echo Xcode path: `xcode-select -print-path`
 	@echo Node.js version: `node -v`
 
-travis: jshint print_env authorize iwd test
+travis: 
+ifeq ($(CI_CONFIG),unit)
+	make jshint print_env test_unit
+else ifeq ($(CI_CONFIG),functional)
+	make jshint print_env authorize iwd test_functional
+endif
+
+prepublish: jshint iwd test
+
+clean_trace:
+	rm -rf instrumentscli*.trace
 
 .PHONY: \
 	DEFAULT \
@@ -51,5 +66,7 @@ travis: jshint print_env authorize iwd test
 	test \
 	authorize \
 	travis \
-	print_env
+	prepublish \
+	print_env \
+	clean_trace
 	
